@@ -1,8 +1,12 @@
 import pandas as pd
-import numpy as np
-import sklearn as sk
 import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn import preprocessing
+from sklearn.svm import LinearSVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import cross_val_score
 
 plt.style.use('ggplot')
 
@@ -118,18 +122,12 @@ def clean_data(train, test):
         dataset.loc[(dataset['Age'] > 70) & (dataset['Age'] <= 80), 'Age'] = 8
         dataset.loc[dataset['Age'] > 80, 'Age'] = 1
 
+    train.to_csv('train_out.csv', index=False)
+
     return train, test
 
 
 def create_models(train, test, start):
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.neighbors import KNeighborsClassifier
-    from sklearn import preprocessing
-    from sklearn.svm import LinearSVC
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.tree import DecisionTreeClassifier
-    from sklearn.model_selection import cross_val_score
-
     x_train = train.drop("Survived", axis=1)
     y_train = train["Survived"]
     x_test = test.copy()
@@ -153,7 +151,7 @@ def create_models(train, test, start):
     knn.fit(x_train, y_train)
     y_pred = knn.predict(x_test)
 
-    cross_score_knn = cross_val_score(knn, x_train, y_train, cv=8, scoring="accuracy")
+    cross_score_knn = cross_val_score(knn, x_train, y_train, cv=10, scoring="accuracy")
 
     df_output = pd.DataFrame()
     aux = pd.read_csv('test.csv')
@@ -200,7 +198,7 @@ def create_models(train, test, start):
 
     cross_score_dt = cross_val_score(decision_tree, x_train, y_train, cv=10, scoring="accuracy")
 
-    print("\nK-FOLD CROSS FOLD VALIDATION SCORES:")
+    print("\nCROSS FOLD VALIDATION SCORES:")
     print("The Logistic Regression Model had a score of {:2.2%}".format(cross_score_log.mean()))
     print("The K-Nearest Neighbors Model had a score of {:2.2%}".format(cross_score_knn.mean()))
     print("The Linear Support Vector Model had a score of {:2.2%}".format(cross_score_svc.mean()))
