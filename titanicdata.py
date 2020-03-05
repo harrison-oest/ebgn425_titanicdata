@@ -39,13 +39,11 @@ def create_plots(train):
     sex_pivot.plot.bar()
     plt.show()
 
-    # --------------------------------------------------
     # Creates a pivot table and then a bar graph of the comparison between Pclass and survival rate
     pclass_pivot = train.pivot_table(index='Pclass', values='Survived')
     pclass_pivot.plot.bar()
     plt.show()
 
-    # --------------------------------------------------
     train['Age'].describe()  # Compares the frequency that people of each age survived or did not survive
 
     survived = train[train["Survived"] == 1]
@@ -55,7 +53,6 @@ def create_plots(train):
     plt.legend(['Survived', 'Did Not Survive'])
     plt.show()
 
-    # --------------------------------------------------
     cut_points = [0, 18, 60, 100]  # Sets the age ranges
     age_type = ["Child or Teen", "Adult", "Elderly"]
 
@@ -99,16 +96,26 @@ def clean_data(train, test):
         dataset['Fare'] = dataset['Fare'].astype(int)
 
     # Change NaN values in the 'Age' column to the average age
-    mean_age_train = train['Age'].mean(skipna=True)
-    mean_age_test = test['Age'].mean(skipna=True)
+    median_age_train = train['Age'].median(skipna=True)
+    median_age_test = test['Age'].median(skipna=True)
 
-    train['Age'].fillna(int(mean_age_train), inplace=True)
-    test['Age'].fillna(int(mean_age_test), inplace=True)
+    train['Age'].fillna(int(median_age_train), inplace=True)
+    test['Age'].fillna(int(median_age_test), inplace=True)
 
     train, test = process_embarked(train, test)
 
     train.drop('Name', axis=1, inplace=True)
     test.drop('Name', axis=1, inplace=True)
+
+    train.drop('PassengerId', axis=1, inplace=True)
+
+    # Process the Pclass to make it binary
+    pclass_dummies_train = pd.get_dummies(train['Pclass'], prefix='Pclass')
+    pclass_dummies_test = pd.get_dummies(test['Pclass'], prefix='Pclass')
+    train = pd.concat([train, pclass_dummies_train], axis=1)
+    test = pd.concat([test, pclass_dummies_test], axis=1)
+    train.drop('Pclass', axis=1, inplace=True)
+    test.drop('Pclass', axis=1, inplace=True)
 
     datasets = [train, test]
     for dataset in datasets:
@@ -128,9 +135,11 @@ def clean_data(train, test):
 
 
 def create_models(train, test, start):
-    x_train = train.drop("Survived", axis=1)
+    features = ['Age', 'SibSp', 'Parch', 'Fare', 'female', 'male', 'family', 'alone', 'Embarked_C', 'Embarked_Q',
+                'Embarked_S', 'Pclass_1', 'Pclass_2', 'Pclass_3']
+    x_train = train[features]
     y_train = train["Survived"]
-    x_test = test.copy()
+    x_test = test[features]
     x_train = preprocessing.scale(x_train)
 
     # Logistic Regression
@@ -145,6 +154,7 @@ def create_models(train, test, start):
     aux = pd.read_csv('test.csv')
     df_output['PassengerId'] = aux['PassengerId']
     df_output['Survived'] = y_pred
+    df_output[['PassengerId', 'Survived']].to_csv('logreg_output.csv', index=False)
 
     # KNN
     knn = KNeighborsClassifier(n_neighbors=3)
@@ -157,7 +167,7 @@ def create_models(train, test, start):
     aux = pd.read_csv('test.csv')
     df_output['PassengerId'] = aux['PassengerId']
     df_output['Survived'] = y_pred
-    df_output[['PassengerId', 'Survived']].to_csv('output.csv', index=False)
+    df_output[['PassengerId', 'Survived']].to_csv('knn_output.csv', index=False)
 
     # Linear SVM
     linear_svc = LinearSVC(dual=False)
@@ -171,6 +181,7 @@ def create_models(train, test, start):
     aux = pd.read_csv('test.csv')
     df_output['PassengerId'] = aux['PassengerId']
     df_output['Survived'] = y_pred
+    df_output[['PassengerId', 'Survived']].to_csv('linsvm_output.csv', index=False)
 
     # Random Forest
     random_forest = RandomForestClassifier(max_depth=None, random_state=1, n_estimators=500)
@@ -184,7 +195,7 @@ def create_models(train, test, start):
     aux = pd.read_csv('test.csv')
     df_output['PassengerId'] = aux['PassengerId']
     df_output['Survived'] = y_pred
-    df_output[['PassengerId', 'Survived']].to_csv('output.csv', index=False)
+    df_output[['PassengerId', 'Survived']].to_csv('rf_output.csv', index=False)
 
     # Decision Tree
     decision_tree = DecisionTreeClassifier()
@@ -195,6 +206,7 @@ def create_models(train, test, start):
     aux = pd.read_csv('test.csv')
     df_output['PassengerId'] = aux['PassengerId']
     df_output['Survived'] = y_pred
+    df_output[['PassengerId', 'Survived']].to_csv('tree_output.csv', index=False)
 
     cross_score_dt = cross_val_score(decision_tree, x_train, y_train, cv=10, scoring="accuracy")
 
@@ -204,6 +216,22 @@ def create_models(train, test, start):
     print("The Linear Support Vector Model had a score of {:2.2%}".format(cross_score_svc.mean()))
     print("The Random Forest Model had a score of {:2.2%}".format(cross_score_rf.mean()))
     print("The Decision Tree Model had a score of {:2.2%}".format(cross_score_dt.mean()))
+
+    # Figure out how many and what features are important for the model
+    from sklearn.feature_selection import RFECV
+    rfecv = RFECV(estimator=RandomForestClassifier(), step=1, cv=10, scoring='accuracy')
+    rfecv.fit(x_train, y_train)
+
+    opt_features = train[features].columns[(rfecv.get_support())]
+    print("Optimal number of features: %d" % rfecv.n_features_)
+    print('Selected features: %s' % opt_features)
+
+    # Plot number of features VS. cross-validation scores
+    plt.figure(figsize=(10, 6))
+    plt.xlabel("Number of features selected")
+    plt.ylabel("Cross validation score (nb of correct classifications)")
+    plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
+    plt.show()
 
 
 def run_data(train, test, start):
