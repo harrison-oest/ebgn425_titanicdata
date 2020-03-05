@@ -95,6 +95,16 @@ def clean_data(train, test):
         dataset['Fare'] = dataset['Fare'].fillna(0)
         dataset['Fare'] = dataset['Fare'].astype(int)
 
+    # Divie up the Fare category into more manageable sections
+    for dataset in datasets:
+        dataset.loc[dataset['Fare'] <= 7.91, 'Fare'] = 0
+        dataset.loc[(dataset['Fare'] > 7.91) & (dataset['Fare'] <= 14.454), 'Fare'] = 1
+        dataset.loc[(dataset['Fare'] > 14.454) & (dataset['Fare'] <= 31), 'Fare'] = 2
+        dataset.loc[(dataset['Fare'] > 31) & (dataset['Fare'] <= 99), 'Fare'] = 3
+        dataset.loc[(dataset['Fare'] > 99) & (dataset['Fare'] <= 250), 'Fare'] = 4
+        dataset.loc[dataset['Fare'] > 250, 'Fare'] = 5
+        dataset['Fare'] = dataset['Fare'].astype(int)
+
     # Change NaN values in the 'Age' column to the average age
     median_age_train = train['Age'].median(skipna=True)
     median_age_test = test['Age'].median(skipna=True)
@@ -102,11 +112,14 @@ def clean_data(train, test):
     train['Age'].fillna(int(median_age_train), inplace=True)
     test['Age'].fillna(int(median_age_test), inplace=True)
 
+    # Split up where they embarked to binary values
     train, test = process_embarked(train, test)
 
+    # Drop the name column since it doesn't matter unless we factor in titles
     train.drop('Name', axis=1, inplace=True)
     test.drop('Name', axis=1, inplace=True)
 
+    # Don't need the passenger IDs so that's removed too
     train.drop('PassengerId', axis=1, inplace=True)
 
     # Process the Pclass to make it binary
@@ -117,17 +130,18 @@ def clean_data(train, test):
     train.drop('Pclass', axis=1, inplace=True)
     test.drop('Pclass', axis=1, inplace=True)
 
+    # Simplify the age range into more manageable sections
     datasets = [train, test]
     for dataset in datasets:
-        dataset.loc[dataset['Age'] <= 10, 'Age'] = 0
-        dataset.loc[(dataset['Age'] > 10) & (dataset['Age'] <= 20), 'Age'] = 1
-        dataset.loc[(dataset['Age'] > 20) & (dataset['Age'] <= 30), 'Age'] = 2
-        dataset.loc[(dataset['Age'] > 30) & (dataset['Age'] <= 40), 'Age'] = 3
-        dataset.loc[(dataset['Age'] > 40) & (dataset['Age'] <= 50), 'Age'] = 4
-        dataset.loc[(dataset['Age'] > 50) & (dataset['Age'] <= 60), 'Age'] = 5
-        dataset.loc[(dataset['Age'] > 60) & (dataset['Age'] <= 70), 'Age'] = 7
-        dataset.loc[(dataset['Age'] > 70) & (dataset['Age'] <= 80), 'Age'] = 8
-        dataset.loc[dataset['Age'] > 80, 'Age'] = 1
+        dataset['Age'] = dataset['Age'].astype(int)
+        dataset.loc[dataset['Age'] <= 11, 'Age'] = 0
+        dataset.loc[(dataset['Age'] > 11) & (dataset['Age'] <= 18), 'Age'] = 1
+        dataset.loc[(dataset['Age'] > 18) & (dataset['Age'] <= 22), 'Age'] = 2
+        dataset.loc[(dataset['Age'] > 22) & (dataset['Age'] <= 27), 'Age'] = 3
+        dataset.loc[(dataset['Age'] > 27) & (dataset['Age'] <= 33), 'Age'] = 4
+        dataset.loc[(dataset['Age'] > 33) & (dataset['Age'] <= 40), 'Age'] = 5
+        dataset.loc[(dataset['Age'] > 40) & (dataset['Age'] <= 66), 'Age'] = 6
+        dataset.loc[dataset['Age'] > 66, 'Age'] = 7
 
     train.to_csv('train_out.csv', index=False)
 
@@ -218,20 +232,20 @@ def create_models(train, test, start):
     print("The Decision Tree Model had a score of {:2.2%}".format(cross_score_dt.mean()))
 
     # Figure out how many and what features are important for the model
-    from sklearn.feature_selection import RFECV
-    rfecv = RFECV(estimator=RandomForestClassifier(), step=1, cv=10, scoring='accuracy')
-    rfecv.fit(x_train, y_train)
-
-    opt_features = train[features].columns[(rfecv.get_support())]
-    print("Optimal number of features: %d" % rfecv.n_features_)
-    print('Selected features: %s' % opt_features)
-
-    # Plot number of features VS. cross-validation scores
-    plt.figure(figsize=(10, 6))
-    plt.xlabel("Number of features selected")
-    plt.ylabel("Cross validation score (nb of correct classifications)")
-    plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
-    plt.show()
+    # from sklearn.feature_selection import RFECV
+    # rfecv = RFECV(estimator=RandomForestClassifier(), step=1, cv=10, scoring='accuracy')
+    # rfecv.fit(x_train, y_train)
+    #
+    # opt_features = train[features].columns[(rfecv.get_support())]
+    # print("Optimal number of features: %d" % rfecv.n_features_)
+    # print('Selected features: %s' % opt_features)
+    #
+    # # Plot number of features VS. cross-validation scores
+    # plt.figure(figsize=(10, 6))
+    # plt.xlabel("Number of features selected")
+    # plt.ylabel("Cross validation score (nb of correct classifications)")
+    # plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
+    # plt.show()
 
 
 def run_data(train, test, start):
