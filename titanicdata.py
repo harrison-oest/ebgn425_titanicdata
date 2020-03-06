@@ -113,7 +113,11 @@ def clean_data(train, test):
     test['Age'].fillna(int(median_age_test), inplace=True)
 
     # Split up where they embarked to binary values
-    train, test = process_embarked(train, test)
+    # train, test = process_embarked(train, test)
+    train.Embarked.fillna('S', inplace=True)
+    test.Embarked.fillna('S', inplace=True)
+    train['Embarked'] = train['Embarked'].map({'S': 0, 'C': 1, 'Q': 2}).astype(int)
+    test['Embarked'] = test['Embarked'].map({'S': 0, 'C': 1, 'Q': 2}).astype(int)
 
     # Drop the name column since it doesn't matter unless we factor in titles
     train.drop('Name', axis=1, inplace=True)
@@ -149,8 +153,7 @@ def clean_data(train, test):
 
 
 def create_models(train, test, start):
-    features = ['Age', 'SibSp', 'Parch', 'Fare', 'female', 'male', 'family', 'alone', 'Embarked_C', 'Embarked_Q',
-                'Embarked_S', 'Pclass_1', 'Pclass_2', 'Pclass_3']
+    features = ['Age', 'SibSp', 'Parch', 'Fare', 'female', 'male', 'family', 'alone', 'Embarked', 'Pclass_1', 'Pclass_2', 'Pclass_3']
     x_train = train[features]
     y_train = train["Survived"]
     x_test = test[features]
@@ -249,9 +252,9 @@ def create_models(train, test, start):
 
 
 def run_data(train, test, start):
-    plot_bool = input("Would you like to plot the data? (y/n)")
-    if plot_bool == 'y' or plot_bool == 'Y':
-        create_plots(train)
+    # plot_bool = input("Would you like to plot the data? (y/n)")
+    # if plot_bool == 'y' or plot_bool == 'Y':
+    #     create_plots(train)
     train, test = clean_data(train, test)
     create_models(train, test, start)
 
