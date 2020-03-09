@@ -2,11 +2,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn import preprocessing
 from sklearn.svm import LinearSVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import cross_val_score
+from sklearn.preprocessing import StandardScaler
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
 
 plt.style.use('ggplot')
 
@@ -113,13 +115,29 @@ def clean_data(train, test):
     test['Age'].fillna(int(median_age_test), inplace=True)
 
     # Split up where they embarked to binary values
-    # train, test = process_embarked(train, test)
-    train.Embarked.fillna('S', inplace=True)
-    test.Embarked.fillna('S', inplace=True)
-    train['Embarked'] = train['Embarked'].map({'S': 0, 'C': 1, 'Q': 2}).astype(int)
-    test['Embarked'] = test['Embarked'].map({'S': 0, 'C': 1, 'Q': 2}).astype(int)
+    train, test = process_embarked(train, test)
 
     # Drop the name column since it doesn't matter unless we factor in titles
+    titles = {"Mr": 1, "Miss": 2, "Mrs": 3, "Master": 4, "Other": 5}
+
+    train['Title'] = train.Name.str.extract(' ([A-Za-z]+)\.', expand=False)
+    train['Title'] = train['Title'].replace(['Lady', 'Countess', 'Capt', 'Col', 'Don', 'Dr',
+                                             'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Other')
+    train['Title'] = train['Title'].replace('Mlle', 'Miss')
+    train['Title'] = train['Title'].replace('Ms', 'Miss')
+    train['Title'] = train['Title'].replace('Mme', 'Mrs')
+    train['Title'] = train['Title'].map(titles)
+    train['Title'] = train['Title'].fillna("NA")
+
+    test['Title'] = test.Name.str.extract(' ([A-Za-z]+)\.', expand=False)
+    test['Title'] = test['Title'].replace(['Lady', 'Countess', 'Capt', 'Col', 'Don', 'Dr',
+                                           'Major', 'Rev', 'Sir', 'Jonkheer', 'Dona'], 'Other')
+    test['Title'] = test['Title'].replace('Mlle', 'Miss')
+    test['Title'] = test['Title'].replace('Ms', 'Miss')
+    test['Title'] = test['Title'].replace('Mme', 'Mrs')
+    test['Title'] = test['Title'].map(titles)
+    test['Title'] = test['Title'].fillna("NA")
+
     train.drop('Name', axis=1, inplace=True)
     test.drop('Name', axis=1, inplace=True)
 
@@ -152,12 +170,12 @@ def clean_data(train, test):
     return train, test
 
 
-def create_models(train, test, start):
-    features = ['Age', 'SibSp', 'Parch', 'Fare', 'female', 'male', 'family', 'alone', 'Embarked', 'Pclass_1', 'Pclass_2', 'Pclass_3']
+def create_models(train, test):
+    features = ['Age', 'Title', 'SibSp', 'Parch', 'Fare', 'female', 'male', 'family', 'alone', 'Pclass_1', 'Pclass_2',
+                'Pclass_3', 'Embarked_C', 'Embarked_Q', 'Embarked_S']
     x_train = train[features]
     y_train = train["Survived"]
     x_test = test[features]
-    x_train = preprocessing.scale(x_train)
 
     # Logistic Regression
     logreg = LogisticRegression()
@@ -234,21 +252,58 @@ def create_models(train, test, start):
     print("The Random Forest Model had a score of {:2.2%}".format(cross_score_rf.mean()))
     print("The Decision Tree Model had a score of {:2.2%}".format(cross_score_dt.mean()))
 
-    # Figure out how many and what features are important for the model
-    # from sklearn.feature_selection import RFECV
-    # rfecv = RFECV(estimator=RandomForestClassifier(), step=1, cv=10, scoring='accuracy')
-    # rfecv.fit(x_train, y_train)
-    #
-    # opt_features = train[features].columns[(rfecv.get_support())]
-    # print("Optimal number of features: %d" % rfecv.n_features_)
-    # print('Selected features: %s' % opt_features)
-    #
-    # # Plot number of features VS. cross-validation scores
-    # plt.figure(figsize=(10, 6))
-    # plt.xlabel("Number of features selected")
-    # plt.ylabel("Cross validation score (nb of correct classifications)")
-    # plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
-    # plt.show()
+    # All of the Neural Network stuff starts here
+
+    scaler = StandardScaler()
+    x_train = train[features]
+    y_train = train["Survived"]
+    x_test = test[features]
+    x_train = scaler.fit_transform(x_train)
+    x_test = scaler.fit_transform(x_test)
+
+    classifier = Sequential()
+
+    # Input layer with 10 inputs neurons
+    classifier.add(Dense(32, activation="relu", kernel_initializer="uniform", input_dim=len(features)))
+    classifier.add(Dropout(0.50))
+    classifier.add(Dense(16, activation="relu", kernel_initializer="uniform"))
+    classifier.add(Dropout(0.40))
+    classifier.add(Dense(8, activation="relu", kernel_initializer="uniform"))
+    classifier.add(Dropout(0.30))
+    classifier.add(Dense(4, activation="relu", kernel_initializer="uniform"))
+    classifier.add(Dropout(0.20))
+    classifier.add(Dense(2, activation="relu", kernel_initializer="uniform"))
+    classifier.add(Dropout(0.10))
+    classifier.add(Dense(1, activation="sigmoid", kernel_initializer="uniform"))
+
+    # optimizers = ['SGD', 'RMSprop', 'Adagrad', 'Adadelta', 'Adam', 'Adamax', 'Nadam']
+    optimizers = ['Adam']
+    for opt in optimizers:
+        print("--------------", opt, "----------------")
+        classifier.compile(optimizer=opt, loss='mean_squared_error', metrics=['accuracy'])
+
+        classifier.fit(x_train, y_train, batch_size=len(features), epochs=200, validation_split=0.3)
+
+        # getting predictions of test data
+        prediction = classifier.predict(x_test).tolist()
+
+        # list to series
+        se = pd.Series(prediction)
+        test['check'] = se
+        test['check'] = test['check'].str.get(0)
+
+        series = []
+        for val in test.check:
+            if val >= 0.5:
+                series.append(1)
+            else:
+                series.append(0)
+
+        df_output = pd.DataFrame()
+        aux = pd.read_csv('test.csv')
+        df_output['PassengerId'] = aux['PassengerId']
+        df_output['Survived'] = series
+        df_output[['PassengerId', 'Survived']].to_csv(opt + '.csv', index=False)
 
 
 def run_data(train, test, start):
@@ -256,7 +311,7 @@ def run_data(train, test, start):
     # if plot_bool == 'y' or plot_bool == 'Y':
     #     create_plots(train)
     train, test = clean_data(train, test)
-    create_models(train, test, start)
+    create_models(train, test)
 
 
 def main():
